@@ -5,7 +5,7 @@ spring:
     url: jdbc:h2:mem:orderdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
     driver-class-name: org.h2.Driver
     username: sa
-    password: 
+    password:
   jpa:
     database-platform: org.hibernate.dialect.H2Dialect
     hibernate:
@@ -18,3 +18,12 @@ spring:
 
 server:
   port: 8081
+
+payment:
+  service:
+    url: http://payment-service:8082
+
+logging:
+  level:
+    com.example.order.client: DEBUG
+    org.springframework.cloud.openfeign: DEBUG

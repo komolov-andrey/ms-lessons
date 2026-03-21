@@ -2,6 +2,7 @@ package com.example.order.controller;
 
 import com.example.order.domain.Order;
 import com.example.order.domain.OrderStatus;
+import com.example.order.dto.PaymentCardDto;
 import com.example.order.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -22,6 +23,14 @@ public class OrderController {
     public ResponseEntity<Order> createOrder(@RequestBody Order order) {
         Order createdOrder = orderService.createOrder(order);
         return new ResponseEntity<>(createdOrder, HttpStatus.CREATED);
+    }
+
+    @PostMapping("/{orderId}/process-payment")
+    public ResponseEntity<Order> processPayment(
+            @PathVariable UUID orderId,
+            @RequestBody PaymentCardDto cardDetails) {
+        Order processedOrder = orderService.processOrderWithPayment(orderId, cardDetails);
+        return ResponseEntity.ok(processedOrder);
     }
     
     @GetMapping("/{id}")

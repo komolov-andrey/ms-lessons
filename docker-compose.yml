@@ -10,6 +10,9 @@ services:
       - microservices-network
     environment:
       - SPRING_PROFILES_ACTIVE=docker
+      - PAYMENT_SERVICE_URL=http://payment-service:8082
+    depends_on:
+      - payment-service
 
   payment-service:
     build: ./payment-service
