@@ -2,15 +2,20 @@ version: '3.8'
 
 services:
   order-service:
-    build: ./order-service
+    build:
+      context: ./order-service
+      dockerfile: Dockerfile
     container_name: order-service
     ports:
       - "8081:8081"
     networks:
       - microservices-network
     environment:
+      - SERVER_PORT=8081
       - SPRING_PROFILES_ACTIVE=docker
       - PAYMENT_SERVICE_URL=http://payment-service:8082
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info
+      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
     depends_on:
       - payment-service
 
