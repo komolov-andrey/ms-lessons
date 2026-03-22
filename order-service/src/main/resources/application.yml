@@ -19,6 +19,15 @@ spring:
 server:
   port: 8081
 
+# Базовая конфигурация SpringDoc
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+
 management:
   endpoints:
     web:
