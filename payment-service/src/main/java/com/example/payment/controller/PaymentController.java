@@ -1,6 +1,8 @@
 package com.example.payment.controller;
 
 import com.example.payment.domain.Payment;
+import com.example.payment.dto.PaymentRequest;
+import com.example.payment.dto.PaymentResponse;
 import com.example.payment.service.PaymentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -14,39 +16,39 @@ import java.util.UUID;
 @RequestMapping("/api/payments")
 @RequiredArgsConstructor
 public class PaymentController {
-    
+
     private final PaymentService paymentService;
-    
+
     @PostMapping
-    public ResponseEntity<Payment> processPayment(@RequestBody Payment payment) {
-        Payment processedPayment = paymentService.processPayment(payment);
+    public ResponseEntity<PaymentResponse> processPayment(@RequestBody PaymentRequest paymentRequest) {
+        PaymentResponse processedPayment = paymentService.processPayment(paymentRequest);
         return new ResponseEntity<>(processedPayment, HttpStatus.CREATED);
     }
-    
+
     @GetMapping("/{id}")
-    public ResponseEntity<Payment> getPayment(@PathVariable UUID id) {
-        Payment payment = paymentService.getPayment(id);
+    public ResponseEntity<PaymentResponse> getPayment(@PathVariable UUID id) {
+        PaymentResponse payment = paymentService.getPaymentResponse(id);
         return ResponseEntity.ok(payment);
     }
-    
-    @GetMapping
-    public ResponseEntity<List<Payment>> getAllPayments() {
-        List<Payment> payments = paymentService.getAllPayments();
-        return ResponseEntity.ok(payments);
-    }
-    
+
     @GetMapping("/order/{orderId}")
-    public ResponseEntity<List<Payment>> getPaymentsByOrder(@PathVariable String orderId) {
-        List<Payment> payments = paymentService.getPaymentsByOrder(orderId);
+    public ResponseEntity<PaymentResponse> getPaymentByOrderId(@PathVariable String orderId) {
+        PaymentResponse payment = paymentService.getPaymentByOrderId(orderId);
+        return ResponseEntity.ok(payment);
+    }
+
+    @GetMapping
+    public ResponseEntity<List<PaymentResponse>> getAllPayments() {
+        List<PaymentResponse> payments = paymentService.getAllPaymentResponses();
         return ResponseEntity.ok(payments);
     }
-    
+
     @PostMapping("/{id}/refund")
-    public ResponseEntity<Payment> refundPayment(@PathVariable UUID id) {
-        Payment refundedPayment = paymentService.refundPayment(id);
+    public ResponseEntity<PaymentResponse> refundPayment(@PathVariable UUID id) {
+        PaymentResponse refundedPayment = paymentService.refundPayment(id);
         return ResponseEntity.ok(refundedPayment);
     }
-    
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deletePayment(@PathVariable UUID id) {
         paymentService.deletePayment(id);
