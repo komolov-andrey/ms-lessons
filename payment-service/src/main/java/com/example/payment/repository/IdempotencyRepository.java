@@ -11,5 +11,5 @@ import java.util.Optional;
 @Repository
 public interface IdempotencyRepository extends JpaRepository<IdempotencyKey, String> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    Optional<IdempotencyKey> findByKey(String key);
+    Optional<IdempotencyKey> findByIkey(String ikey);
 }

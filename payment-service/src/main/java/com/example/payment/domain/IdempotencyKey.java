@@ -8,21 +8,21 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 
+@ToString
 @Entity
 @Table(name = "idempotency_keys")
 @Data
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class IdempotencyKey {
-    
+
     @Id
     @Column(nullable = false, unique = true)
-    private String key;
+    private String ikey;
     
     @Enumerated(EnumType.STRING)
     private KeyStatus status;
@@ -32,8 +32,8 @@ public class IdempotencyKey {
 
     private int statusCode;
 
-    public IdempotencyKey(String key, KeyStatus status) {
-        this.key = key;
+    public IdempotencyKey(String ikey, KeyStatus status) {
+        this.ikey = ikey;
         this.status = status;
     }
 }

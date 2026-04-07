@@ -70,7 +70,7 @@ public class OrderController {
             @PathVariable UUID orderId,
             @Parameter(description = "Payment card details", required = true)
             @RequestBody PaymentCardDto cardDetails) {
-        Order processedOrder = orderService.processOrderWithPayment(orderId, cardDetails);
+        Order processedOrder = orderService.processOrderWithPayment(orderId, cardDetails, idempotencyKey);
         return ResponseEntity.ok(processedOrder);
     }
 

@@ -1,10 +1,7 @@
 package com.example.payment.config;
 
-import com.example.payment.filter.ResponseWrappingFilter;
 import com.example.payment.interceptor.IdempotencyInterceptor;
 import lombok.RequiredArgsConstructor;
-import org.springframework.boot.web.servlet.FilterRegistrationBean;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
@@ -22,15 +19,8 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(idempotencyInterceptor)
-                .addPathPatterns("/**");
+                .addPathPatterns("/api/**")
+                .order(1);
     }
 
-    @Bean
-    public FilterRegistrationBean<ResponseWrappingFilter> responseWrappingFilter() {
-        FilterRegistrationBean<ResponseWrappingFilter> registrationBean = new FilterRegistrationBean<>();
-        registrationBean.setFilter(new ResponseWrappingFilter());
-        registrationBean.addUrlPatterns("/*");
-        registrationBean.setOrder(1);
-        return registrationBean;
-    }
 }

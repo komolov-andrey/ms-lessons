@@ -49,16 +49,9 @@ public class PaymentService {
             // Симуляция обработки платежа через платежный шлюз
             Thread.sleep(1000);
 
-            // Симуляция успешного/неуспешного платежа (80% успеха)
-            if (Math.random() < 0.8) {
-                savedPayment.setStatus(PaymentStatus.COMPLETED);
-                savedPayment.setTransactionId("TXN-" + UUID.randomUUID().toString().substring(0, 8));
-                log.info("Payment completed for order: {}", request.getOrderId());
-            } else {
-                savedPayment.setStatus(PaymentStatus.FAILED);
-                savedPayment.setErrorMessage("Insufficient funds or card declined");
-                log.warn("Payment failed for order: {}", request.getOrderId());
-            }
+            savedPayment.setStatus(PaymentStatus.COMPLETED);
+            savedPayment.setTransactionId("TXN-" + UUID.randomUUID().toString().substring(0, 8));
+            log.info("Payment completed for order: {}", request.getOrderId());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             savedPayment.setStatus(PaymentStatus.FAILED);

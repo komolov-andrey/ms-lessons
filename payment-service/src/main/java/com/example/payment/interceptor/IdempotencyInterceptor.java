@@ -8,6 +8,7 @@ import com.example.payment.service.IdempotencyService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -20,6 +21,7 @@ import org.springframework.web.util.ContentCachingResponseWrapper;
  * @author a.komolov
  * @date 2026-04-06
  */
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class IdempotencyInterceptor implements HandlerInterceptor {
@@ -31,6 +33,9 @@ public class IdempotencyInterceptor implements HandlerInterceptor {
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
         HttpMethod httpMethod = HttpMethod.valueOf(request.getMethod());
+
+        log.info("process httpMethod: {}", httpMethod);
+
         if (HttpMethod.POST.equals(httpMethod)) {
             String key = request.getHeader(KEY_NAME);
 
@@ -40,8 +45,11 @@ public class IdempotencyInterceptor implements HandlerInterceptor {
                 return false;
             }
 
-            var existingKey = idempotencyService.getByKey(key);
+            log.info("process KEY_NAME: {}", key);
+
+            var existingKey = idempotencyService.getByIkey(key);
             if  (existingKey.isPresent()) {
+                log.info("existingKey: {}", existingKey.get());
                 if (KeyStatus.PENDING.equals(existingKey.get().getStatus())) {
                     response.setStatus(HttpStatus.CONFLICT.value());
                     response.getWriter().println(KEY_NAME + " already exists");
@@ -53,6 +61,7 @@ public class IdempotencyInterceptor implements HandlerInterceptor {
                 return false;
             } else {
                 try {
+                    log.info("try create KEY_NAME {}", key);
                     idempotencyService.createPendingKey(key);
                     return true;
                 } catch (Exception e) {
@@ -76,6 +85,7 @@ public class IdempotencyInterceptor implements HandlerInterceptor {
             String responseBody = new String(wrappedResponse.getContentAsByteArray(), wrappedResponse.getCharacterEncoding());
 
             var key = request.getHeader(KEY_NAME);
+            log.info("try markKeyAsCompleted KEY_NAME {}", key);
             idempotencyService.markKeyAsCompleted(key, responseBody, response.getStatus());
         }
     }

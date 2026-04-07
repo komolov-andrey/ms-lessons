@@ -12,7 +12,7 @@ public interface IdempotencyService {
 
     void createPendingKey(String key);
 
-    Optional<IdempotencyKey> getByKey(String key);
+    Optional<IdempotencyKey> getByIkey(String key);
 
     void markKeyAsCompleted(String key, String responseData, int statusCode);
 }

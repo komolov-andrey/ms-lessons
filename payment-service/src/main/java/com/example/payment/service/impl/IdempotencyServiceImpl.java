@@ -6,6 +6,7 @@ import com.example.payment.repository.IdempotencyRepository;
 import com.example.payment.service.IdempotencyService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 
@@ -25,13 +26,15 @@ public class IdempotencyServiceImpl implements IdempotencyService {
     }
 
     @Override
-    public Optional<IdempotencyKey> getByKey(String key) {
-        return idempotencyRepository.findByKey(key);
+    @Transactional
+    public Optional<IdempotencyKey> getByIkey(String key) {
+        return idempotencyRepository.findByIkey(key);
     }
 
     @Override
+    @Transactional
     public void markKeyAsCompleted(String key, String responseData, int statusCode) {
-        idempotencyRepository.findByKey(key).ifPresentOrElse(idempotency -> {
+        idempotencyRepository.findByIkey(key).ifPresentOrElse(idempotency -> {
             idempotency.setStatus(KeyStatus.COMPLETED);
             idempotency.setResponse(responseData);
             idempotency.setStatusCode(statusCode);
