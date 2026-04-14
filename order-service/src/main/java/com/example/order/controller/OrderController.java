@@ -5,6 +5,9 @@ import com.example.order.domain.OrderStatus;
 import com.example.order.dto.ErrorResponse;
 import com.example.order.dto.PaymentCardDto;
 import com.example.order.service.OrderService;
+import feign.FeignException;
+import feign.Request;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -13,6 +16,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -26,9 +30,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/orders")
 @RequiredArgsConstructor
@@ -38,6 +44,7 @@ public class OrderController {
     private final OrderService orderService;
 
     @PostMapping
+    @CircuitBreaker(name = "orderServiceCircuitBreaker")
     @Operation(summary = "Create a new order", description = "Creates a new order with items and shipping address")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "201", description = "Order created successfully",
@@ -48,6 +55,25 @@ public class OrderController {
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     public ResponseEntity<Order> createOrder(@RequestBody Order order) {
+
+        if (true) {
+            //throw new RuntimeException("Server error test feign");
+            log.info("try createOrder before exception");
+
+            throw new FeignException.InternalServerError(
+                    "Server error test feign",
+                    Request.create(
+                            Request.HttpMethod.POST,
+                            "http://api.example.com/resource/123",
+                            new java.util.HashMap<>(),
+                            new byte[0],
+                            StandardCharsets.UTF_8,
+                            null
+                    ),
+                    "{\"error\": \"Internal error\"}".getBytes(StandardCharsets.UTF_8),
+                    null);
+        }
+
         Order createdOrder = orderService.createOrder(order);
         return new ResponseEntity<>(createdOrder, HttpStatus.CREATED);
     }
