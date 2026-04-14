@@ -59,23 +59,6 @@ public class OrderService {
     public Order processOrderWithPayment(UUID orderId, PaymentCardDto cardDetails, String idempotencyKey) {
         log.info("Starting payment processing for order ID: {}", orderId);
 
-        if (true) {
-            //throw new RuntimeException("Server error test feign");
-
-            throw new FeignException.InternalServerError(
-                    "Server error test feign",
-                    Request.create(
-                            Request.HttpMethod.POST,
-                            "http://api.example.com/resource/123",
-                            new java.util.HashMap<>(),
-                            new byte[0],
-                            StandardCharsets.UTF_8,
-                            null
-                    ),
-                    "{\"error\": \"Internal error\"}".getBytes(StandardCharsets.UTF_8),
-                    null);
-        }
-
         Order order = null;
 
         try {
