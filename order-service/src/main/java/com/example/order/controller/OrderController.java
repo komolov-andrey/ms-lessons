@@ -56,24 +56,6 @@ public class OrderController {
     })
     public ResponseEntity<Order> createOrder(@RequestBody Order order) {
 
-        if (true) {
-            //throw new RuntimeException("Server error test feign");
-            log.info("try createOrder before exception");
-
-            throw new FeignException.InternalServerError(
-                    "Server error test feign",
-                    Request.create(
-                            Request.HttpMethod.POST,
-                            "http://api.example.com/resource/123",
-                            new java.util.HashMap<>(),
-                            new byte[0],
-                            StandardCharsets.UTF_8,
-                            null
-                    ),
-                    "{\"error\": \"Internal error\"}".getBytes(StandardCharsets.UTF_8),
-                    null);
-        }
-
         Order createdOrder = orderService.createOrder(order);
         return new ResponseEntity<>(createdOrder, HttpStatus.CREATED);
     }
