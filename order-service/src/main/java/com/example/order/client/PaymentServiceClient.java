@@ -11,7 +11,8 @@ import java.util.UUID;
 public interface PaymentServiceClient {
 
     @PostMapping("/api/payments")
-    PaymentResponse processPayment(@RequestBody PaymentRequest paymentRequest);
+    PaymentResponse processPayment(@RequestHeader("Idempotency-Key") String idempotencyKey,
+                                   @RequestBody PaymentRequest paymentRequest);
 
     @GetMapping("/api/payments/{id}")
     PaymentResponse getPayment(@PathVariable("id") UUID id);

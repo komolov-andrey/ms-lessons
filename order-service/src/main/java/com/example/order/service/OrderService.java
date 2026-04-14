@@ -50,7 +50,7 @@ public class OrderService {
     }
 
     @Transactional
-    public Order processOrderWithPayment(UUID orderId, PaymentCardDto cardDetails) {
+    public Order processOrderWithPayment(UUID orderId, PaymentCardDto cardDetails, String idempotencyKey) {
         log.info("Starting payment processing for order ID: {}", orderId);
         Order order = null;
 
@@ -58,14 +58,6 @@ public class OrderService {
             // Получаем заказ
             order = getOrder(orderId);
             log.debug("Order retrieved: {}", order.getOrderNumber());
-
-            // Проверяем статус заказа
-            if (order.getStatus() != OrderStatus.CREATED) {
-                String errorMsg = String.format("Order %s is not in CREATED state. Current state: %s",
-                        order.getOrderNumber(), order.getStatus());
-                log.warn(errorMsg);
-                throw new IllegalStateException(errorMsg);
-            }
 
             // Обновляем статус на PAYMENT_PENDING
             order.setStatus(OrderStatus.PAYMENT_PENDING);
@@ -77,7 +69,7 @@ public class OrderService {
             log.debug("Payment request created for order: {}", order.getOrderNumber());
 
             // Отправляем запрос в payment-service с обработкой статусов
-            PaymentResponse paymentResponse = sendPaymentRequestWithStatusHandling(paymentRequest, order);
+            PaymentResponse paymentResponse = sendPaymentRequestWithStatusHandling(paymentRequest, order, idempotencyKey);
 
             // Обрабатываем успешный ответ
             return handleSuccessfulPaymentResponse(order, paymentResponse);
@@ -103,14 +95,14 @@ public class OrderService {
     /**
      * Отправка запроса в payment-service с обработкой статусов ответа
      */
-    private PaymentResponse sendPaymentRequestWithStatusHandling(PaymentRequest paymentRequest, Order order) {
+    private PaymentResponse sendPaymentRequestWithStatusHandling(PaymentRequest paymentRequest, Order order, String idempotencyKey) {
         PaymentResponse response = null;
 
         try {
             log.info("Sending payment request to payment-service for order: {}", paymentRequest.getOrderNumber());
 
             // Вызываем Feign клиент
-            response = paymentServiceClient.processPayment(paymentRequest);
+            response = paymentServiceClient.processPayment(idempotencyKey, paymentRequest);
 
             // Проверяем, что ответ не null
             if (response == null) {
