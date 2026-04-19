@@ -1,12 +1,16 @@
 package com.example.order.service;
 
 import com.example.order.client.PaymentServiceClient;
-import com.example.order.domain.*;
+import com.example.order.domain.Money;
+import com.example.order.domain.Order;
+import com.example.order.domain.OrderStatus;
 import com.example.order.dto.PaymentCardDto;
 import com.example.order.dto.PaymentRequest;
 import com.example.order.dto.PaymentResponse;
 import com.example.order.repository.OrderRepository;
 import feign.FeignException;
+import feign.Request;
+import io.github.resilience4j.retry.annotation.Retry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -14,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.Currency;
 import java.util.List;
@@ -50,8 +55,10 @@ public class OrderService {
     }
 
     @Transactional
+    @Retry(name = "orderServiceRetry")
     public Order processOrderWithPayment(UUID orderId, PaymentCardDto cardDetails, String idempotencyKey) {
         log.info("Starting payment processing for order ID: {}", orderId);
+
         Order order = null;
 
         try {

@@ -38,3 +38,32 @@ management:
   endpoint:
     health:
       show-details: always
+
+resilience4j:
+  retry:
+    instances:
+      orderServiceRetry:
+        max-attempts: 3
+        wait-duration: 10s
+        retry-exceptions:
+          - "feign.FeignException$InternalServerError"
+        ignore-exceptions:
+          - java.lang.IllegalArgumentException
+
+  circuitbreaker:
+    instances:
+      orderServiceCircuitBreaker:
+        record-exceptions:
+          - "feign.FeignException$InternalServerError"
+        ignore-exceptions:
+          - java.lang.IllegalArgumentException
+        failure-rate-threshold: 50
+        sliding-window-size: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 10
+        minimum-number-of-calls: 10
+
+logging:
+  level:
+    io.github.resilience4j.retry: DEBUG
+    org.springframework.aop: DEBUG
