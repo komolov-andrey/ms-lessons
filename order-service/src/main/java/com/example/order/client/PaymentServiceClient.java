@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
-@FeignClient(name = "payment-service", url = "${payment.service.url:http://localhost:8082}")
+@FeignClient(name = "payment-service", url = "${payment.service.url}")
 public interface PaymentServiceClient {
 
     @PostMapping("/api/payments")
