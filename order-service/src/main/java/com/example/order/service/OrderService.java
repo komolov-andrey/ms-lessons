@@ -10,6 +10,8 @@ import com.example.order.dto.PaymentResponse;
 import com.example.order.repository.OrderRepository;
 import feign.FeignException;
 import feign.Request;
+import io.github.resilience4j.bulkhead.annotation.Bulkhead;
+import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
 import io.github.resilience4j.retry.annotation.Retry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -56,6 +58,8 @@ public class OrderService {
 
     @Transactional
     @Retry(name = "orderServiceRetry")
+    @Bulkhead(name = "orderServiceBulkhead")
+    @RateLimiter(name = "orderServiceRateLimiter")
     public Order processOrderWithPayment(UUID orderId, PaymentCardDto cardDetails, String idempotencyKey) {
         log.info("Starting payment processing for order ID: {}", orderId);
 

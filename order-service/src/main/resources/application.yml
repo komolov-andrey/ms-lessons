@@ -62,6 +62,17 @@ resilience4j:
         wait-duration-in-open-state: 10s
         permitted-number-of-calls-in-half-open-state: 10
         minimum-number-of-calls: 10
+  bulkhead:
+    instances:
+      orderServiceBulkhead:
+        max-concurrent-calls: 5
+        max-wait-duration: 2s
+  ratelimiter:
+    instances:
+      orderServiceRateLimiter:
+        limit-for-period: 10
+        limit-refresh-period: 1m
+        timeout-duration: 1s
 
 logging:
   level:
