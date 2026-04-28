@@ -106,7 +106,7 @@ public class OrderService {
     /**
      * Отправка запроса в payment-service с обработкой статусов ответа
      */
-    private PaymentResponse sendPaymentRequestWithStatusHandling(PaymentRequest paymentRequest, Order order, String idempotencyKey) {
+    public PaymentResponse sendPaymentRequestWithStatusHandling(PaymentRequest paymentRequest, Order order, String idempotencyKey) {
         PaymentResponse response = null;
 
         try {

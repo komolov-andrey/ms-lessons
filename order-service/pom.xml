@@ -57,6 +57,11 @@
             <artifactId>spring-boot-starter-aop</artifactId>
         </dependency>
         <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>io.github.resilience4j</groupId>
             <artifactId>resilience4j-spring-boot3</artifactId>
         </dependency>
@@ -64,6 +69,12 @@
             <groupId>com.bucket4j</groupId>
             <artifactId>bucket4j-core</artifactId>
             <version>8.10.1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.wiremock.integrations</groupId>
+            <artifactId>wiremock-spring-boot</artifactId>
+            <version>3.0.1</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 
