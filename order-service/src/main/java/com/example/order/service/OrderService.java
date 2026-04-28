@@ -79,7 +79,6 @@ public class OrderService {
      */
     public void sendPaymentRequestWithStatusHandling(PaymentRequest paymentRequest, Order order, String idempotencyKey) {
         try {
-            log.info("Publishing payment request to RabbitMQ for order: {}", paymentRequest.getOrderNumber());
             paymentMessagePublisher.sendPaymentRequest(paymentRequest, idempotencyKey);
         } catch (Exception e) {
             log.error("Failed to publish payment request for order {}: {}", order.getOrderNumber(), e.getMessage(), e);
