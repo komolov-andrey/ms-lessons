@@ -1,11 +1,8 @@
 package com.example.payment.controller;
 
-import com.example.payment.domain.Payment;
-import com.example.payment.dto.PaymentRequest;
 import com.example.payment.dto.PaymentResponse;
 import com.example.payment.service.PaymentService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,12 +15,6 @@ import java.util.UUID;
 public class PaymentController {
 
     private final PaymentService paymentService;
-
-    @PostMapping
-    public ResponseEntity<PaymentResponse> processPayment(@RequestBody PaymentRequest paymentRequest) {
-        PaymentResponse processedPayment = paymentService.processPayment(paymentRequest);
-        return new ResponseEntity<>(processedPayment, HttpStatus.CREATED);
-    }
 
     @GetMapping("/{id}")
     public ResponseEntity<PaymentResponse> getPayment(@PathVariable UUID id) {

@@ -10,10 +10,6 @@ import java.util.UUID;
 @FeignClient(name = "payment-service", url = "${payment.service.url}")
 public interface PaymentServiceClient {
 
-    @PostMapping("/api/payments")
-    PaymentResponse processPayment(@RequestHeader("Idempotency-Key") String idempotencyKey,
-                                   @RequestBody PaymentRequest paymentRequest);
-
     @GetMapping("/api/payments/{id}")
     PaymentResponse getPayment(@PathVariable("id") UUID id);
 

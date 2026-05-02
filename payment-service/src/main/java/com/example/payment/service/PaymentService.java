@@ -131,7 +131,6 @@ public class PaymentService {
                 .amount(payment.getAmount().getAmount())
                 .currency(payment.getAmount().getCurrency())
                 .transactionId(payment.getTransactionId())
-                .paymentDate(payment.getPaymentDate())
                 .errorMessage(payment.getErrorMessage())
                 .build();
     }

@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   order-service:
     build:
@@ -16,8 +14,13 @@ services:
       - PAYMENT_SERVICE_URL=http://payment-service:8082
       - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info
       - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
+      - SPRING_RABBITMQ_HOST=rabbitmq
+      - SPRING_RABBITMQ_PORT=5672
+      - SPRING_RABBITMQ_USERNAME=guest
+      - SPRING_RABBITMQ_PASSWORD=guest
     depends_on:
       - payment-service
+      - rabbitmq
 
   payment-service:
     build: ./payment-service
@@ -28,6 +31,12 @@ services:
       - microservices-network
     environment:
       - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_RABBITMQ_HOST=rabbitmq
+      - SPRING_RABBITMQ_PORT=5672
+      - SPRING_RABBITMQ_USERNAME=guest
+      - SPRING_RABBITMQ_PASSWORD=guest
+    depends_on:
+      - rabbitmq
 
   delivery-service:
     build: ./delivery-service
@@ -38,6 +47,18 @@ services:
       - microservices-network
     environment:
       - SPRING_PROFILES_ACTIVE=docker
+
+  rabbitmq:
+    image: rabbitmq:4.2.0-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - microservices-network
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
 
 networks:
   microservices-network:

@@ -7,12 +7,9 @@ import com.example.order.domain.OrderStatus;
 import com.example.order.dto.PaymentCardDto;
 import com.example.order.dto.PaymentRequest;
 import com.example.order.dto.PaymentResponse;
+import com.example.order.messaging.PaymentMessagePublisher;
 import com.example.order.repository.OrderRepository;
 import feign.FeignException;
-import feign.Request;
-import io.github.resilience4j.bulkhead.annotation.Bulkhead;
-import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
-import io.github.resilience4j.retry.annotation.Retry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -20,7 +17,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.Currency;
 import java.util.List;
@@ -33,6 +29,7 @@ public class OrderService {
 
     private final OrderRepository orderRepository;
     private final PaymentServiceClient paymentServiceClient;
+    private final PaymentMessagePublisher paymentMessagePublisher;
 
     @Transactional
     public Order createOrder(Order order) {
@@ -56,294 +53,38 @@ public class OrderService {
         }
     }
 
+    /**
+     * Обработка заказа с отправкой запроса оплаты через RabbitMQ.
+     * Возвращает заказ в статусе PAYMENT_PENDING — результат оплаты придёт асинхронно.
+     */
     @Transactional
-    @Retry(name = "orderServiceRetry")
-    @Bulkhead(name = "orderServiceBulkhead")
-    @RateLimiter(name = "orderServiceRateLimiter")
     public Order processOrderWithPayment(UUID orderId, PaymentCardDto cardDetails, String idempotencyKey) {
         log.info("Starting payment processing for order ID: {}", orderId);
 
-        Order order = null;
+        Order order = getOrder(orderId);
+        log.debug("Order retrieved: {}", order.getOrderNumber());
 
+        order.setStatus(OrderStatus.PAYMENT_PENDING);
+        order = orderRepository.save(order);
+        log.info("Order {} status updated to PAYMENT_PENDING", order.getOrderNumber());
+
+        PaymentRequest paymentRequest = buildPaymentRequest(order, cardDetails);
+        sendPaymentRequestWithStatusHandling(paymentRequest, order, idempotencyKey);
+
+        return order;
+    }
+
+    /**
+     * Публикация запроса на оплату в RabbitMQ (заменяет синхронный Feign-вызов)
+     */
+    public void sendPaymentRequestWithStatusHandling(PaymentRequest paymentRequest, Order order, String idempotencyKey) {
         try {
-            // Получаем заказ
-            order = getOrder(orderId);
-            log.debug("Order retrieved: {}", order.getOrderNumber());
-
-            // Обновляем статус на PAYMENT_PENDING
-            order.setStatus(OrderStatus.PAYMENT_PENDING);
-            orderRepository.save(order);
-            log.info("Order {} status updated to PAYMENT_PENDING", order.getOrderNumber());
-
-            // Создаем запрос на оплату
-            PaymentRequest paymentRequest = buildPaymentRequest(order, cardDetails);
-            log.debug("Payment request created for order: {}", order.getOrderNumber());
-
-            // Отправляем запрос в payment-service с обработкой статусов
-            PaymentResponse paymentResponse = sendPaymentRequestWithStatusHandling(paymentRequest, order, idempotencyKey);
-
-            // Обрабатываем успешный ответ
-            return handleSuccessfulPaymentResponse(order, paymentResponse);
-
-        } catch (FeignException e) {
-            // Обработка ошибок Feign (включая 500)
-            return handleFeignException(order, orderId, e);
-
-        } catch (IllegalStateException e) {
-            // Пробрасываем исключения статуса заказа
-            throw e;
-
+            paymentMessagePublisher.sendPaymentRequest(paymentRequest, idempotencyKey);
         } catch (Exception e) {
-            // Обработка других неожиданных ошибок
-            log.error("Unexpected error during payment processing for order {}: {}", orderId, e.getMessage(), e);
-            if (order != null) {
-                updateOrderToFailed(order);
-            }
-            throw new RuntimeException("Payment processing failed due to unexpected error: " + e.getMessage(), e);
-        }
-    }
-
-    /**
-     * Отправка запроса в payment-service с обработкой статусов ответа
-     */
-    public PaymentResponse sendPaymentRequestWithStatusHandling(PaymentRequest paymentRequest, Order order, String idempotencyKey) {
-        PaymentResponse response = null;
-
-        try {
-            log.info("Sending payment request to payment-service for order: {}", paymentRequest.getOrderNumber());
-
-            // Вызываем Feign клиент
-            response = paymentServiceClient.processPayment(idempotencyKey, paymentRequest);
-
-            // Проверяем, что ответ не null
-            if (response == null) {
-                log.error("Received null response from payment service for order: {}", order.getOrderNumber());
-                throw new RuntimeException("Payment service returned null response");
-            }
-
-            // Логируем полученный статус
-            log.info("Payment service response received - Status: {}, PaymentId: {}, TransactionId: {}",
-                    response.getStatus(), response.getPaymentId(), response.getTransactionId());
-
-            // Обработка статуса 200 OK (успешный ответ от сервиса)
-            return handlePaymentServiceResponse(response, order);
-
-        } catch (FeignException e) {
-            // Обработка ошибок HTTP (4xx, 5xx)
-            log.error("Feign exception while calling payment-service: Status={}, Message={}",
-                    e.status(), e.getMessage());
-            throw e; // Пробрасываем для дальнейшей обработки
-
-        } catch (Exception e) {
-            // Обработка других ошибок (таймауты, ошибки сети)
-            log.error("Unexpected error calling payment-service: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to communicate with payment service: " + e.getMessage(), e);
-        }
-    }
-
-    /**
-     * Обработка успешного ответа от payment-service (HTTP 200)
-     */
-    private PaymentResponse handlePaymentServiceResponse(PaymentResponse response, Order order) {
-        try {
-            // Проверяем бизнес-статус платежа
-            if ("COMPLETED".equals(response.getStatus())) {
-                log.info("Payment successfully completed for order: {}", order.getOrderNumber());
-                return response;
-
-            } else if ("FAILED".equals(response.getStatus())) {
-                String errorMsg = String.format("Payment failed for order %s: %s",
-                        order.getOrderNumber(),
-                        response.getErrorMessage() != null ? response.getErrorMessage() : "Unknown error");
-                log.error(errorMsg);
-                throw new RuntimeException(errorMsg);
-
-            } else if ("PENDING".equals(response.getStatus())) {
-                log.warn("Payment is pending for order: {}", order.getOrderNumber());
-                throw new RuntimeException("Payment is still pending. Please check status later.");
-
-            } else {
-                log.warn("Unknown payment status for order {}: {}", order.getOrderNumber(), response.getStatus());
-                throw new RuntimeException("Unknown payment status: " + response.getStatus());
-            }
-
-        } catch (Exception e) {
-            log.error("Error processing payment service response for order {}: {}", order.getOrderNumber(), e.getMessage());
-            throw e;
-        }
-    }
-
-    /**
-     * Обработка успешного платежа и обновление заказа
-     */
-    private Order handleSuccessfulPaymentResponse(Order order, PaymentResponse paymentResponse) {
-        try {
-            if (paymentResponse == null) {
-                throw new RuntimeException("Payment response is null");
-            }
-
-            if ("COMPLETED".equals(paymentResponse.getStatus())) {
-                order.setPaymentId(paymentResponse.getPaymentId().toString());
-                order.setStatus(OrderStatus.PAID);
-                Order updatedOrder = orderRepository.save(order);
-                log.info("Payment successful for order: {}. Payment ID: {}, Transaction ID: {}",
-                        order.getOrderNumber(), paymentResponse.getPaymentId(), paymentResponse.getTransactionId());
-                return updatedOrder;
-
-            } else {
-                // Если платеж не успешен, отменяем заказ
-                order.setStatus(OrderStatus.CANCELLED);
-                orderRepository.save(order);
-                throw new RuntimeException("Payment failed with status: " + paymentResponse.getStatus());
-            }
-
-        } catch (Exception e) {
-            log.error("Error handling successful payment response: {}", e.getMessage());
-            throw e;
-        }
-    }
-
-    /**
-     * Обработка ошибок Feign клиента (включая HTTP 500)
-     */
-    private Order handleFeignException(Order order, UUID orderId, FeignException e) {
-        int statusCode = e.status();
-        String errorMessage = e.getMessage();
-
-        log.error("Feign exception occurred - Status: {}, Order: {}, Message: {}",
-                statusCode, orderId, errorMessage);
-
-        try {
-            // Получаем актуальный заказ, если он не был передан
-            if (order == null) {
-                order = getOrder(orderId);
-            }
-
-            // Обработка различных HTTP статусов
-            if (statusCode == HttpStatus.INTERNAL_SERVER_ERROR.value()) {
-                // HTTP 500 - Internal Server Error
-                log.error("Payment service returned 500 Internal Server Error for order: {}", order.getOrderNumber());
-                order.setStatus(OrderStatus.CANCELLED);
-                orderRepository.save(order);
-                throw new RuntimeException(
-                        "Payment service encountered an internal error. Please try again later or contact support.",
-                        e
-                );
-
-            } else if (statusCode == HttpStatus.SERVICE_UNAVAILABLE.value()) {
-                // HTTP 503 - Service Unavailable
-                log.error("Payment service is unavailable (503) for order: {}", order.getOrderNumber());
-                order.setStatus(OrderStatus.CANCELLED);
-                orderRepository.save(order);
-                throw new RuntimeException(
-                        "Payment service is temporarily unavailable. Please try again later.",
-                        e
-                );
-
-            } else if (statusCode == HttpStatus.BAD_REQUEST.value()) {
-                // HTTP 400 - Bad Request
-                log.error("Invalid payment request (400) for order: {}", order.getOrderNumber());
-                order.setStatus(OrderStatus.CANCELLED);
-                orderRepository.save(order);
-                throw new RuntimeException(
-                        "Invalid payment request. Please check your payment details: " + extractErrorMessage(e),
-                        e
-                );
-
-            } else if (statusCode == HttpStatus.NOT_FOUND.value()) {
-                // HTTP 404 - Not Found
-                log.error("Payment service endpoint not found (404) for order: {}", order.getOrderNumber());
-                order.setStatus(OrderStatus.CANCELLED);
-                orderRepository.save(order);
-                throw new RuntimeException(
-                        "Payment service configuration error. Please contact support.",
-                        e
-                );
-
-            } else if (statusCode == HttpStatus.REQUEST_TIMEOUT.value()) {
-                // HTTP 408 - Request Timeout
-                log.error("Payment service request timeout (408) for order: {}", order.getOrderNumber());
-                order.setStatus(OrderStatus.CANCELLED);
-                orderRepository.save(order);
-                throw new RuntimeException(
-                        "Payment service request timeout. Please try again later.",
-                        e
-                );
-
-            } else if (statusCode == HttpStatus.TOO_MANY_REQUESTS.value()) {
-                // HTTP 429 - Too Many Requests
-                log.error("Rate limit exceeded (429) for order: {}", order.getOrderNumber());
-                order.setStatus(OrderStatus.CANCELLED);
-                orderRepository.save(order);
-                throw new RuntimeException(
-                        "Too many payment requests. Please wait and try again later.",
-                        e
-                );
-
-            } else if (statusCode >= 500) {
-                // Любые другие 5xx ошибки
-                log.error("Payment service server error ({}): {}", statusCode, errorMessage);
-                order.setStatus(OrderStatus.CANCELLED);
-                orderRepository.save(order);
-                throw new RuntimeException(
-                        "Payment service error (HTTP " + statusCode + "). Please try again later.",
-                        e
-                );
-
-            } else if (statusCode >= 400) {
-                // Клиентские ошибки 4xx
-                log.error("Payment service client error ({}): {}", statusCode, errorMessage);
-                order.setStatus(OrderStatus.CANCELLED);
-                orderRepository.save(order);
-                throw new RuntimeException(
-                        "Payment request failed: " + extractErrorMessage(e),
-                        e
-                );
-
-            } else {
-                // Другие ошибки (таймауты, ошибки сети и т.д.)
-                log.error("Payment service communication error: {}", errorMessage);
-                order.setStatus(OrderStatus.CANCELLED);
-                orderRepository.save(order);
-                throw new RuntimeException(
-                        "Failed to communicate with payment service: " + extractErrorMessage(e),
-                        e
-                );
-            }
-
-        } catch (Exception ex) {
-            log.error("Error handling Feign exception for order {}: {}", orderId, ex.getMessage());
-            throw new RuntimeException("Payment processing failed: " + errorMessage, e);
-        }
-    }
-
-    /**
-     * Обновление заказа в статус FAILED
-     */
-    private void updateOrderToFailed(Order order) {
-        try {
+            log.error("Failed to publish payment request for order {}: {}", order.getOrderNumber(), e.getMessage(), e);
             order.setStatus(OrderStatus.CANCELLED);
             orderRepository.save(order);
-            log.info("Order {} marked as CANCELLED due to payment failure", order.getOrderNumber());
-        } catch (Exception e) {
-            log.error("Failed to update order {} status to CANCELLED: {}", order.getOrderNumber(), e.getMessage());
-        }
-    }
-
-    /**
-     * Извлечение сообщения об ошибке из FeignException
-     */
-    private String extractErrorMessage(FeignException e) {
-        try {
-            if (e.getMessage() != null && !e.getMessage().isEmpty()) {
-                return e.getMessage();
-            }
-            if (e.contentUTF8() != null && !e.contentUTF8().isEmpty()) {
-                return e.contentUTF8();
-            }
-            return "Unknown error";
-        } catch (Exception ex) {
-            return "Error extracting error message";
+            throw new RuntimeException("Failed to send payment request: " + e.getMessage(), e);
         }
     }
 

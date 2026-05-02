@@ -18,6 +18,5 @@ public class PaymentResponse {
     private String orderId;
     private String status;
     private String transactionId;
-    private LocalDateTime paymentDate;
     private String errorMessage;
 }

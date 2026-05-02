@@ -6,7 +6,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.Currency;
 import java.util.UUID;
 
@@ -22,6 +21,5 @@ public class PaymentResponse {
     private BigDecimal amount;
     private Currency currency;
     private String transactionId;
-    private LocalDateTime paymentDate;
     private String errorMessage;
 }
