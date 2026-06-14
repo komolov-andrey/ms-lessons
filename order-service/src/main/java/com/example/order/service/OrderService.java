@@ -4,9 +4,11 @@ import com.example.order.client.PaymentServiceClient;
 import com.example.order.domain.Money;
 import com.example.order.domain.Order;
 import com.example.order.domain.OrderStatus;
+import com.example.order.dto.DeliveryRequest;
 import com.example.order.dto.PaymentCardDto;
 import com.example.order.dto.PaymentRequest;
 import com.example.order.dto.PaymentResponse;
+import com.example.order.messaging.DeliveryMessagePublisher;
 import com.example.order.messaging.PaymentMessagePublisher;
 import com.example.order.repository.OrderRepository;
 import feign.FeignException;
@@ -27,9 +29,12 @@ import java.util.UUID;
 @Slf4j
 public class OrderService {
 
+    private static final String PAYMENT_METHOD_CREDIT_CARD = "CREDIT_CARD";
+
     private final OrderRepository orderRepository;
     private final PaymentServiceClient paymentServiceClient;
     private final PaymentMessagePublisher paymentMessagePublisher;
+    private final DeliveryMessagePublisher deliveryMessagePublisher;
 
     @Transactional
     public Order createOrder(Order order) {
@@ -70,6 +75,7 @@ public class OrderService {
 
         PaymentRequest paymentRequest = buildPaymentRequest(order, cardDetails);
         sendPaymentRequestWithStatusHandling(paymentRequest, order, idempotencyKey);
+        sendDeliveryRequestWithStatusHandling(order);
 
         return order;
     }
@@ -85,6 +91,23 @@ public class OrderService {
             order.setStatus(OrderStatus.CANCELLED);
             orderRepository.save(order);
             throw new RuntimeException("Failed to send payment request: " + e.getMessage(), e);
+        }
+    }
+
+    public void sendDeliveryRequestWithStatusHandling(Order order) {
+        try {
+            DeliveryRequest deliveryRequest = DeliveryRequest.builder()
+                    .orderId(order.getId().toString())
+                    .orderNumber(order.getOrderNumber())
+                    .status(order.getStatus().name())
+                    .build();
+
+            deliveryMessagePublisher.sendDeliveryRequest(deliveryRequest);
+        } catch (Exception e) {
+            log.error("Failed to publish delivery request for order {}: {}", order.getOrderNumber(), e.getMessage(), e);
+            order.setStatus(OrderStatus.CANCELLED);
+            orderRepository.save(order);
+            throw new RuntimeException("Failed to send delivery request: " + e.getMessage(), e);
         }
     }
 
@@ -257,7 +280,7 @@ public class OrderService {
                     .orderNumber(order.getOrderNumber())
                     .amount(order.getTotalAmount().getAmount())
                     .currency(order.getTotalAmount().getCurrency())
-                    .paymentMethod("CREDIT_CARD")
+                    .paymentMethod(PAYMENT_METHOD_CREDIT_CARD)
                     .cardDetails(cardDetails)
                     .build();
         } catch (Exception e) {
