@@ -1,6 +1,10 @@
 package com.example.order.service;
 
+import com.example.order.async.domain.AsyncMessage;
+import com.example.order.async.domain.AsyncMessageId;
+import com.example.order.async.service.AsyncMessageService;
 import com.example.order.client.PaymentServiceClient;
+import com.example.order.config.KafkaTopicsConfig;
 import com.example.order.domain.Money;
 import com.example.order.domain.Order;
 import com.example.order.domain.OrderStatus;
@@ -8,9 +12,9 @@ import com.example.order.dto.DeliveryRequest;
 import com.example.order.dto.PaymentCardDto;
 import com.example.order.dto.PaymentRequest;
 import com.example.order.dto.PaymentResponse;
-import com.example.order.messaging.DeliveryMessagePublisher;
 import com.example.order.messaging.PaymentMessagePublisher;
 import com.example.order.repository.OrderRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,7 +38,8 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final PaymentServiceClient paymentServiceClient;
     private final PaymentMessagePublisher paymentMessagePublisher;
-    private final DeliveryMessagePublisher deliveryMessagePublisher;
+    private final AsyncMessageService asyncMessageService;
+    private final ObjectMapper objectMapper;
 
     @Transactional
     public Order createOrder(Order order) {
@@ -74,7 +79,9 @@ public class OrderService {
         log.info("Order {} status updated to PAYMENT_PENDING", order.getOrderNumber());
 
         PaymentRequest paymentRequest = buildPaymentRequest(order, cardDetails);
+        // rabbit
         sendPaymentRequestWithStatusHandling(paymentRequest, order, idempotencyKey);
+        // kafka
         sendDeliveryRequestWithStatusHandling(order);
 
         return order;
@@ -102,7 +109,13 @@ public class OrderService {
                     .status(order.getStatus().name())
                     .build();
 
-            deliveryMessagePublisher.sendDeliveryRequest(deliveryRequest);
+            var message = new AsyncMessage(
+                    new AsyncMessageId(UUID.randomUUID().toString(), KafkaTopicsConfig.DELIVERY_REQUEST_TOPIC),
+                    objectMapper.writeValueAsString(deliveryRequest),
+                    AsyncMessage.Status.CREATED);
+            log.info("try saveMessage {}", message);
+            asyncMessageService.saveMessage(message);
+
         } catch (Exception e) {
             log.error("Failed to publish delivery request for order {}: {}", order.getOrderNumber(), e.getMessage(), e);
             order.setStatus(OrderStatus.CANCELLED);
